@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "todo-list-common",
+    "todo-list-backend",
+    "todo-list-frontend",
+]
+
+# Optional: this ensures all crates share the same dependency versions
+resolver = "2"
