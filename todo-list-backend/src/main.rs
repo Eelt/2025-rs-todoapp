@@ -23,7 +23,7 @@ async fn view(
     id_to_view: web::Json<u32>,
 ) -> impl Responder {
     let list = todo_list.lock().unwrap();
-    
+
     match list.get(&id_to_view.0) {
         Some(item) => HttpResponse::Ok().json(item),
         None => HttpResponse::NotFound().body(format!("Todo item with id {} not found", id_to_view.0)),
@@ -32,7 +32,7 @@ async fn view(
 
 #[get("/all")]
 async fn fetch_all(
-    todo_list: web::Data<Mutex<Vec<TodoItem>>>
+    todo_list: web::Data<Mutex<BTreeMap<u32, TodoItem>>>
 ) -> impl Responder {
     let list = todo_list.lock().unwrap();
     HttpResponse::Ok()
@@ -45,7 +45,7 @@ async fn main() -> std::io::Result<()> {
     // Mutex is being used to avoid concurrency issues, if this was a regular eg db refrence, with no writes to the object itself,
     // the mutex lock would not be included, and would be more optimal for an application at scale.
     // BTreeMap is used here, because at lower n-counts, it's faster than a hashmap.
-    let todo_from_disk = web::Data::new(Mutex::new(BTreeMap::<u32,TodoItem>::new()));
+    let todo_from_disk = web::Data::new(Mutex::new(BTreeMap::<u32, TodoItem>::new()));
 
     HttpServer::new(move || App::new().wrap(
         Cors::default()
@@ -59,6 +59,7 @@ async fn main() -> std::io::Result<()> {
         // Services
         .service(fetch_all)
         .service(insert)
+        .service(view)
     )
         .bind("127.0.0.1:8081")?
         .run()
