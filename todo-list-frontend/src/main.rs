@@ -39,7 +39,7 @@ impl App for TodoApp {
                     egui::Window::new(format!("Task {}", working_id))
                         .resizable(true)
                         .show(ctx, |ui| {
-                            render_task_window(ui, &working_id, working_data);
+                            render_task_window(ui, &working_id, working_data, &mut self.show_window_data.show_window);
                         });
                 }
             }
@@ -120,7 +120,8 @@ fn render_table(
 fn render_task_window(
     ui: &mut Ui,
     working_id: &u32,
-    working_data: &mut TodoItem
+    working_data: &mut TodoItem,
+    show_window: &mut bool
 ) {
     ui.vertical(|ui| {
         ui.label("Title:");
@@ -154,6 +155,56 @@ fn render_task_window(
         ui.separator();
 
         ui.checkbox(&mut working_data.completed, "Completed");
+    });
+
+    // Buttons
+    ui.horizontal(|ui| {
+        if ui.button("Save Changes").clicked() {
+            // Send PUT request to backend
+            let url = format!("http://127.0.0.1:8081/update/{}", working_id);
+            match reqwest::blocking::Client::new()
+                .put(&url)
+                .json(&working_data)
+                .send()
+            {
+                Ok(resp) => {
+                    if resp.status().is_success() {
+                        println!("Task {} updated successfully", working_id);
+                    } else {
+                        eprintln!("Failed to update task {}: {:?}", working_id, resp.status());
+                    }
+                }
+                Err(err) => {
+                    eprintln!("HTTP request failed: {:?}", err);
+                }
+            }
+        }
+
+        if ui.button("Delete").clicked() {
+            // Send DELETE request to backend
+            let url = format!("http://127.0.0.1:8081/delete/{}", working_id);
+            match reqwest::blocking::Client::new()
+                .delete(&url)
+                .send()
+            {
+                Ok(resp) => {
+                    if resp.status().is_success() {
+                        println!("Task {} deleted successfully", working_id);
+                        // Optionally, you can clear the working_data to close the window
+                        working_data.title.clear();
+                    } else {
+                        eprintln!("Failed to delete task {}: {:?}", working_id, resp.status());
+                    }
+                }
+                Err(err) => {
+                    eprintln!("HTTP request failed: {:?}", err);
+                }
+            }
+        }
+
+        if ui.button("Close window").clicked() {
+            *show_window = false;
+        }
     });
 }
 

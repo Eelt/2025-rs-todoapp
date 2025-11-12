@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fs::{self, File}, io::Write, path::Path, sync::Mutex};
 
 use actix_cors::Cors;
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, http, post, put, web};
+use actix_web::{App, HttpResponse, HttpServer, Responder, delete, get, http, post, put, web};
 use todo_list_common::{TodoItem};
 
 async fn initial_loading_from_disk() -> BTreeMap<u32, TodoItem> {
@@ -75,6 +75,21 @@ async fn update_value(
     HttpResponse::Ok()
 }
 
+#[delete("/delete/{id}")]
+async fn delete(
+    todo_list: web::Data<Mutex<BTreeMap<u32, TodoItem>>>,
+    id: web::Path<u32>,
+) -> impl Responder {
+    let mut list = todo_list.lock().unwrap();
+
+    let _removed_data = list.remove(&id);
+
+    update_on_disk(&list).await.unwrap();
+
+    HttpResponse::Ok()
+}
+
+
 #[post("/insert")]
 async fn insert(
     todo_list: web::Data<Mutex<BTreeMap<u32, TodoItem>>>,
@@ -137,6 +152,7 @@ async fn main() -> std::io::Result<()> {
         .service(insert)
         .service(view)
         .service(update_value)
+        .service(delete)
     )
         .bind("127.0.0.1:8081")?
         .run()
