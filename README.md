@@ -128,8 +128,8 @@ cargo run --release -p todo-list-cli list
 Example output:
 ```
 === All Todos ===
-[0] Run errands - Shopping, clean kitchen, shovel snow (completed: false)
-[1] Finish Rust project - Write Actix handler tests (completed: true)
+[0] Run errands - Shopping, clean kitchen, shovel snow | Due: 2025-11-19T23:59:59Z | Completed: false
+[1] Finish Rust project - Write Actix handler tests | Due: 2025-11-15T23:59:59Z | Completed: true
 ```
 
 ## View a specific TODO by ID:
@@ -158,9 +158,23 @@ You should see 200 to indicate it's successful
 
 ## Update a todo:
 ```
-cargo run --release -p todo-list-cli update 0 "Run errands again" "Do dishes, groceries, shovel" true
+cargo run --release -p todo-list-cli update <id> "<title>" "<description>" "<due_date>" <completed>
 
 ```
 
 You should see 200 to indicate it's successful
 
+## Mark a todo as completed:
+```
+cargo run --release -p todo-list-cli complete <id>
+```
+
+## Mark a todo as incomplete:
+```
+cargo run --release -p todo-list-cli incomplete <id>
+```
+
+## Delete a todo:
+```
+cargo run --release -p todo-list-cli delete <id>
+```

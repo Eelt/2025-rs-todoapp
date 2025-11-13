@@ -7,44 +7,38 @@ use todo_client::*;
 
 /// CLI app to test Todo backend
 ///
-/// Usage examples:
+/// Example usage:
 /// ```bash
 /// cargo run -- list
 /// cargo run -- view 1
-/// cargo run -- insert "Buy groceries" "Milk, eggs, bread"
 /// cargo run -- insert "Buy groceries" "Milk, eggs, bread" "2025-11-20T23:59:59Z"
-/// cargo run -- update 1 "Buy groceries again" "Now with cheese" true
+/// cargo run -- update 1 "Do laundry" "Fold clothes" "2025-11-21T23:59:59Z" true
+/// cargo run -- complete 1
+/// cargo run -- incomplete 1
 /// cargo run -- delete 1
 /// ```
-///
-/// ISO 8601 datetime example:
-/// `2025-11-20T23:59:59Z`
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        eprintln!("Usage:");
-        eprintln!("  list");
-        eprintln!("  view <id>");
-        eprintln!("  insert <title> <description> [due_date]");
-        eprintln!("  update <id> <title> <description> <completed>");
-        eprintln!("  delete <id>");
-        eprintln!();
-        eprintln!("Example date format (ISO 8601): 2025-11-20T23:59:59Z");
+        print_usage();
         return;
     }
 
     match args[1].as_str() {
-        // --- LIST ---
         "list" => {
             match list_todos() {
                 Ok(map) => {
                     println!("=== All Todos ===");
                     for (id, item) in map {
                         println!(
-                            "[{}] {} - {} (completed: {})",
-                            id, item.title, item.description, item.completed
+                            "[{}] {} - {} | Due: {} | Completed: {}",
+                            id,
+                            item.title,
+                            item.description,
+                            item.due_date.to_rfc3339(),
+                            item.completed
                         );
                     }
                 }
@@ -52,7 +46,6 @@ fn main() {
             }
         }
 
-        // --- VIEW ---
         "view" => {
             if args.len() < 3 {
                 eprintln!("Usage: view <id>");
@@ -66,25 +59,22 @@ fn main() {
             }
         }
 
-        // --- INSERT ---
         "insert" => {
             if args.len() < 4 {
                 eprintln!("Usage: insert <title> <description> [due_date]");
-                eprintln!("Example: insert \"Buy groceries\" \"Milk, eggs, bread\" \"2025-11-20T23:59:59Z\"");
+                eprintln!("Example: insert \"Buy groceries\" \"Milk, eggs\" \"2025-11-20T23:59:59Z\"");
                 return;
             }
-
             let title = &args[2];
             let description = &args[3];
             let now = Utc::now();
 
-            // Optional due date argument
+            // Optional due date
             let due_date: DateTime<Utc> = if args.len() > 4 {
-                match args[4].parse::<DateTime<Utc>>() {
-                    Ok(parsed) => parsed,
+                match args[4].parse() {
+                    Ok(dt) => dt,
                     Err(_) => {
-                        eprintln!("Invalid due_date format.");
-                        eprintln!("Expected ISO 8601 format, e.g. 2025-11-20T23:59:59Z");
+                        eprintln!("Invalid due_date format. Example: 2025-11-20T23:59:59Z");
                         return;
                     }
                 }
@@ -106,24 +96,29 @@ fn main() {
             }
         }
 
-        // --- UPDATE ---
         "update" => {
             if args.len() < 6 {
-                eprintln!("Usage: update <id> <title> <description> <completed>");
-                eprintln!("Example: update 1 \"Do laundry\" \"Fold clothes\" false");
+                eprintln!("Usage: update <id> <title> <description> <due_date> <completed>");
+                eprintln!("Example: update 1 \"Do laundry\" \"Fold clothes\" \"2025-11-21T23:59:59Z\" false");
                 return;
             }
-
             let id = &args[2];
             let title = &args[3];
             let description = &args[4];
-            let completed: bool = args[5].parse().unwrap_or(false);
+            let due_date = match args[5].parse::<DateTime<Utc>>() {
+                Ok(dt) => dt,
+                Err(_) => {
+                    eprintln!("Invalid due_date format. Example: 2025-11-21T23:59:59Z");
+                    return;
+                }
+            };
+            let completed: bool = args[6].parse().unwrap_or(false);
 
             let now = Utc::now();
             let updated = TodoItem {
                 title: title.to_string(),
                 description: description.to_string(),
-                due_date: now + chrono::Duration::days(1),
+                due_date,
                 created_at: now,
                 completed,
             };
@@ -134,23 +129,54 @@ fn main() {
             }
         }
 
-        // --- DELETE ---
-        "delete" => {
+        "complete" | "incomplete" => {
             if args.len() < 3 {
-                eprintln!("Usage: delete <id>");
-                eprintln!("Example: delete 1");
+                eprintln!("Usage: {} <id>", args[1]);
                 return;
             }
             let id = &args[2];
+            match view_todo(id) {
+                Ok(Some(mut todo)) => {
+                    todo.completed = args[1] == "complete";
+                    match update_todo(id, &todo) {
+                        Ok(resp) => println!(
+                            "{} successfully: {:?}",
+                            args[1].to_uppercase(),
+                            resp.status()
+                        ),
+                        Err(e) => eprintln!("Error: {}", e),
+                    }
+                }
+                Ok(None) => println!("No todo found with id {}", id),
+                Err(e) => eprintln!("Error: {}", e),
+            }
+        }
 
+        "delete" => {
+            if args.len() < 3 {
+                eprintln!("Usage: delete <id>");
+                return;
+            }
+            let id = &args[2];
             match delete_todo(id) {
                 Ok(resp) => println!("Deleted successfully: {:?}", resp.status()),
                 Err(e) => eprintln!("Error deleting: {}", e),
             }
         }
 
-        _ => {
-            eprintln!("Unknown command: {}", args[1]);
-        }
+        _ => print_usage(),
     }
+}
+
+fn print_usage() {
+    eprintln!("Usage:");
+    eprintln!("  list");
+    eprintln!("  view <id>");
+    eprintln!("  insert <title> <description> [due_date]");
+    eprintln!("  update <id> <title> <description> <due_date> <completed>");
+    eprintln!("  complete <id>");
+    eprintln!("  incomplete <id>");
+    eprintln!("  delete <id>");
+    eprintln!();
+    eprintln!("Example ISO 8601 datetime: 2025-11-20T23:59:59Z");
 }
