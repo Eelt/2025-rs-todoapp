@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use chrono::Utc;
 use eframe::{App, egui};
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
@@ -42,6 +43,23 @@ impl App for TodoApp {
                             render_task_window(ui, &working_id, working_data, &mut self.show_window_data.show_window);
                         });
                 }
+            }
+
+            // This would be more fleshed out and likely using insert instead of update if I had more time
+            // mainly doing this not because the backend is incapable, but front-end is consuming a lot of time
+            // with various bugs and constraints on data storage on the client side
+            if ui.button("Add new task...").clicked() {
+                self.show_window_data.working_data = Some(TodoItem {
+                    title: "Title".to_string(),
+                    description: "Description".to_string(),
+                    due_date: Utc::now(),
+                    created_at: Utc::now(),
+                    completed: false,
+                });
+
+                self.show_window_data.working_data_id = Some(self.todo_entries.len() as u32); // YES this can cause issues being this simple! (IE update instead of create!)
+                self.show_window_data.show_window = true;
+
             }
 
         
@@ -190,7 +208,6 @@ fn render_task_window(
                 Ok(resp) => {
                     if resp.status().is_success() {
                         println!("Task {} deleted successfully", working_id);
-                        // Optionally, you can clear the working_data to close the window
                         working_data.title.clear();
                     } else {
                         eprintln!("Failed to delete task {}: {:?}", working_id, resp.status());
@@ -203,7 +220,7 @@ fn render_task_window(
         }
 
         if ui.button("Close window").clicked() {
-            *show_window = false;
+            *show_window = false; // Bug somewhere with this...
         }
     });
 }
